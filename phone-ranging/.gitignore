@@ -1,0 +1,5 @@
+# Recorded rounds (raw audio + results) — large; share via a drive instead.
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
