@@ -1,0 +1,11 @@
+{
+  "name": "phone-ranging",
+  "version": "0.1.0",
+  "description": "Acoustic phone-to-phone ranging and 2D layout reconstruction. Phone page is dependency-free; the map solver is Python.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run-node.js && python -m unittest discover -s backend/py/tests -t backend/py",
+    "start": "node backend/server.js"
+  }
+}

@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone Ranging</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/frontend/style.css">
+</head>
+<body>
+<!--
+  PHONE VIEW  (served at "/" — this is what each phone opens)
+
+  A phone plays its beep, records what it hears, and uploads the raw audio.
+  The server does the math. This page also draws the map once the round is done,
+  with this phone highlighted. The host page is where a round is started.
+
+  Lifecycle:
+    1. Join      — tap "Join" (a tap is required before browsers allow mic + sound)
+    2. Unlock    — open the mic with all voice processing OFF, prepare audio output
+    3. Sync      — estimate the offset between this phone's clock and the server's
+    4. Poll      — every 250 ms ask the server "is there a new round?"
+    5. Round     — record, beep in my slot, stop, upload
+    6. Report    — draw the map, and show how well this phone heard the beeps
+-->
+
+<h1>Phone ranging</h1>
+
+<!-- Step 1: shown until the phone has joined -->
+<section id="joinSection">
+  <label for="sid">Session code</label>
+  <input id="sid" autocapitalize="off" autocomplete="off">
+  <label for="name">Name for this phone</label>
+  <input id="name" maxlength="12" autocapitalize="characters" autocomplete="off" placeholder="A">
+  <button id="joinBtn">Join</button>
+</section>
+
+<!-- Steps 4–6: shown after joining -->
+<section id="liveSection" class="hidden">
+  <p class="big" id="status">Waiting for the host…</p>
+  <p class="muted" id="who"></p>
+  <svg class="map" id="map" role="img" aria-label="map of phone positions"></svg>
+  <div id="report"></div>
+</section>
+
+<section>
+  <h2>Log</h2>
+  <div id="log"></div>
+</section>
+
+<script type="module">
+// The SAME chirp generator the server uses to search for beeps — so what we
+// play is exactly what it looks for.
+import { makeChirp } from '/backend/signal/chirp.js';
+// Raw Float32 samples → base64 text, so audio can travel inside JSON.
+import { float32ToBase64 } from '/backend/server/wav.js';
+import { api, esc, drawMap, ownCheckHtml } from '/frontend/common.js';
+
+const $ = (id) => document.getElementById(id);
+
+/** Newest-first log lines with a timestamp; the log is the first place to look when something fails. */
+function log(msg) {
+  $('log').textContent = `${new Date().toLocaleTimeString()}  ${msg}\n` + $('log').textContent;
+}
+
+// ── Everything this page remembers, in one place ────────────────────────────
+const state = {
+  sid: null,            // session code, e.g. "k3f9a"
+  me: null,             // this phone as the server knows it: { id, slot, model, selfDistance }
+  ctx: null,            // Web Audio context: plays the beep AND hosts the recorder
+  clockOffsetMs: 0,     // server time ≈ Date.now() + clockOffsetMs
+  recording: false,     // while true, mic blocks are kept
+  chunks: [],           // mic blocks { frame, samples } (128 samples each) for the current round
+  handled: new Set(),   // round numbers already seen, so we never take part twice
+  micSettings: null,    // what the browser ACTUALLY applied (it may ignore our "off" requests)
+  unlockedAt: 0,        // Date.now() when audio was unlocked, to spot "first round after unlock" effects
+  roundsTaken: 0,       // how many rounds this phone has taken part in since joining
+};
+
+// Pre-fill the form: session code from the link (?s=CODE), name from last time on this phone.
+const params = new URLSearchParams(location.search);
+$('sid').value = params.get('s') || '';
+try { $('name').value = localStorage.getItem('ranging-name') || ''; } catch { /* storage blocked: fine */ }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 1. JOIN
+// ═════════════════════════════════════════════════════════════════════════════
+$('joinBtn').addEventListener('click', async () => {
+  $('joinBtn').disabled = true;
+  try {
+    // Browsers only give the microphone to secure pages (https://, or localhost).
+    if (!window.isSecureContext) throw new Error('The microphone needs HTTPS. Open the https:// link from the host.');
+
+    const sid = $('sid').value.trim();
+    if (!sid) throw new Error('Enter the session code shown on the host screen.');
+    const name = $('name').value.trim().toUpperCase();
+
+    // Must run inside this tap handler: mobile browsers refuse audio otherwise.
+    await unlockAudio();
+    await syncClock();
+
+    // Register with the server. It hands back our beep slot (join order).
+    let me;
+    try {
+      me = (await api('POST', `/api/sessions/${sid}/join`, { name: name || undefined, model: navigator.userAgent })).phone;
+    } catch (e) {
+      // 409 = name already in the session. Most likely this phone reloaded the
+      // page, so pick up the existing record instead of failing.
+      if (e.status !== 409) throw e;
+      me = (await api('GET', `/api/sessions/${sid}`)).phones.find((p) => p.id === name);
+    }
+    state.sid = sid;
+    state.me = me;
+    try { localStorage.setItem('ranging-name', me.id); } catch { /* ignore */ }
+    history.replaceState(null, '', `?s=${encodeURIComponent(sid)}`);   // so a reload keeps the session
+
+    // Swap the form for the live status view.
+    $('joinSection').classList.add('hidden');
+    $('liveSection').classList.remove('hidden');
+    $('who').textContent = `You are ${me.id} · beep slot ${me.slot} · session ${sid}`;
+    drawMap($('map'), null, { message: '' });
+    log(`joined as ${me.id}, slot ${me.slot}`);
+
+    // Ask the screen to stay on; a sleeping phone misses rounds. Not all browsers support it.
+    try { await navigator.wakeLock?.request('screen'); } catch { /* optional */ }
+
+    setInterval(poll, 250);
+  } catch (e) {
+    log(`join failed: ${e.message}`);
+    alert(e.message);
+    $('joinBtn').disabled = false;
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2. AUDIO: open the mic raw, and set up a recorder
+// ═════════════════════════════════════════════════════════════════════════════
+async function unlockAudio() {
+  // Safari 17+: say we want to play AND record, so output stays on the loudspeaker
+  // instead of moving to the quiet earpiece like a phone call.
+  if (navigator.audioSession) navigator.audioSession.type = 'play-and-record';
+
+  // 48 kHz if the phone allows it; otherwise whatever it uses (the server adapts).
+  try { state.ctx = new AudioContext({ sampleRate: 48000 }); } catch { state.ctx = new AudioContext(); }
+  await state.ctx.resume();
+
+  // Ask for the mic with every "voice call" feature OFF:
+  //   echoCancellation  would subtract our own beep from the recording
+  //   noiseSuppression  would treat the chirp as noise and smear it
+  //   autoGainControl   would change loudness mid-recording
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+  });
+
+  // Report what the browser actually did with our requests. iOS Safari in
+  // particular may keep some processing on.
+  state.micSettings = stream.getAudioTracks()[0]?.getSettings?.() || null;
+  state.unlockedAt = Date.now();
+
+  // An AudioWorklet runs on the audio thread and sees every 128-sample block of
+  // mic input. It copies each block and posts it to this page, tagged with the
+  // audio-clock frame it belongs to (currentFrame). The frame numbers let us
+  // (a) spot blocks the browser dropped, and (b) know where in the recording our
+  // own beep SHOULD be — both are diagnostics for the server.
+  // (Written inline and loaded from a Blob so there's no extra file to serve.)
+  const WORKLET_SOURCE = `
+    class Recorder extends AudioWorkletProcessor {
+      process(inputs) {
+        const channel = inputs[0] && inputs[0][0];         // first input, first (only) channel
+        if (channel) this.port.postMessage({ frame: currentFrame, samples: channel.slice(0) }); // copy: the browser reuses the buffer
+        return true;                                        // keep running forever
+      }
+    }
+    registerProcessor('recorder', Recorder);`;
+  await state.ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: 'application/javascript' })));
+
+  const mic = state.ctx.createMediaStreamSource(stream);
+  const recorder = new AudioWorkletNode(state.ctx, 'recorder');
+  recorder.port.onmessage = (event) => { if (state.recording) state.chunks.push(event.data); };   // { frame, samples }
+
+  // A node only runs if it is connected toward the speakers, so route it there
+  // through a gain of 0 (we must not hear the mic — that would feed back).
+  const silent = state.ctx.createGain();
+  silent.gain.value = 0;
+  mic.connect(recorder).connect(silent).connect(state.ctx.destination);
+
+  const latencyMs = (state.ctx.outputLatency || state.ctx.baseLatency || 0) * 1000;
+  log(`audio ready: ${state.ctx.sampleRate} Hz, speaker latency ≈ ${latencyMs.toFixed(0)} ms`);
+  const m = state.micSettings || {};
+  log(`mic applied: echoCancellation=${m.echoCancellation} noiseSuppression=${m.noiseSuppression} autoGainControl=${m.autoGainControl}`);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 3. CLOCK SYNC (rough, NTP-style)
+// ═════════════════════════════════════════════════════════════════════════════
+// Ask the server for its time 8 times. For each try, assume the server read its
+// clock halfway through the round trip. The try with the SHORTEST round trip has
+// the least room for error, so keep that one.
+// This only needs to be good to tens of ms: it decides WHEN to beep, but the
+// ranging math cancels out exactly when each phone started and beeped.
+async function syncClock() {
+  let best = { rtt: Infinity, offset: 0 };
+  for (let i = 0; i < 8; i++) {
+    const sent = Date.now();
+    const { serverTime } = await api('GET', '/api/time');
+    const received = Date.now();
+    const rtt = received - sent;
+    if (rtt < best.rtt) best = { rtt, offset: serverTime - (sent + received) / 2 };
+  }
+  state.clockOffsetMs = best.offset;
+  log(`clock offset ${best.offset.toFixed(0)} ms (best round trip ${best.rtt} ms)`);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 4. POLL for new rounds
+// ═════════════════════════════════════════════════════════════════════════════
+let pollBusy = false;    // skip a tick if the previous request is still in flight
+async function poll() {
+  if (pollBusy) return;
+  pollBusy = true;
+  try {
+    const session = await api('GET', `/api/sessions/${state.sid}`);
+    for (const round of session.rounds) {
+      if (state.handled.has(round.number)) continue;
+      state.handled.add(round.number);
+
+      // Only take part if: it hasn't started yet (or just barely), and I'm in its roster.
+      const msUntilStart = round.schedule.startAt - state.clockOffsetMs - Date.now();
+      const inRoster = round.schedule.slots[state.me.id] !== undefined;
+      if (round.status === 'scheduled' && msUntilStart > -200 && inRoster) {
+        takePart(round).catch((e) => { log(`round ${round.number} failed: ${e.message}`); $('status').textContent = 'Round failed — see log'; });
+      }
+    }
+  } catch {
+    $('status').textContent = 'Connection problem…';
+  } finally {
+    pollBusy = false;
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 5. ONE ROUND: record → beep in my slot → stop → upload
+// ═════════════════════════════════════════════════════════════════════════════
+async function takePart(round) {
+  const { schedule } = round;
+  const ctx = state.ctx;
+  await ctx.resume();                          // in case the OS suspended audio
+
+  // (a) Start keeping mic blocks NOW. Exactly when doesn't matter — the server
+  //     only uses time gaps measured inside this one recording.
+  state.chunks = [];
+  state.recording = true;
+
+  // (b) Work out when MY beep should leave the speaker.
+  //     Server time → my clock:   local = server − offset
+  //     My beep:                  round start + lead-in + my slot × slot length
+  const localStartMs = schedule.startAt - state.clockOffsetMs;
+  const myBeepMs = localStartMs + (schedule.leadInS + schedule.slots[state.me.id] * schedule.slotSeconds) * 1000;
+
+  //     Convert to the AUDIO clock (ctx.currentTime, seconds). Scheduling on the
+  //     audio clock is sample-accurate; setTimeout can be late by tens of ms.
+  //     Start a little early by the speaker latency so sound leaves on time.
+  const latency = ctx.outputLatency || ctx.baseLatency || 0;
+  const playAt = ctx.currentTime + (myBeepMs - Date.now()) / 1000 - latency;
+  if (playAt < ctx.currentTime + 0.05) throw new Error('saw the round too late to beep on time');
+
+  // (c) Build the chirp (same parameters the server will search for) and schedule it.
+  const chirp = makeChirp({ ...schedule.chirp, sampleRate: ctx.sampleRate });
+  const buffer = ctx.createBuffer(1, chirp.length, ctx.sampleRate);
+  buffer.copyToChannel(Float32Array.from(chirp), 0);   // makeChirp gives Float64; audio wants Float32
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  source.start(playAt);
+
+  // (d) Count down on screen, then wait until every phone's slot has passed.
+  const endMs = localStartMs + schedule.recordSeconds * 1000;
+  const ticker = setInterval(() => {
+    const secondsLeft = Math.ceil((localStartMs - Date.now()) / 1000);
+    $('status').textContent = secondsLeft > 0 ? `Round ${round.number} in ${secondsLeft}… stay quiet` : `Round ${round.number}: listening…`;
+  }, 100);
+  await new Promise((resolve) => setTimeout(resolve, Math.max(0, endMs - Date.now()) + 150));
+  clearInterval(ticker);
+  state.recording = false;
+
+  // (e) Glue the 128-sample blocks into one long recording. Any jump in frame
+  //     numbers is a block the browser dropped: it shortens the recording and
+  //     shifts every later beep, so log where and how much.
+  const chunks = state.chunks;
+  state.chunks = [];
+  const total = chunks.reduce((n, c) => n + c.samples.length, 0);
+  const samples = new Float32Array(total);
+  const droppedBlocks = [];   // { atSample, missingFrames }
+  let offset = 0;
+  for (let k = 0; k < chunks.length; k++) {
+    const c = chunks[k];
+    if (k > 0) {
+      const expectedFrame = chunks[k - 1].frame + chunks[k - 1].samples.length;
+      if (c.frame !== expectedFrame) droppedBlocks.push({ atSample: offset, missingFrames: c.frame - expectedFrame });
+    }
+    samples.set(c.samples, offset);
+    offset += c.samples.length;
+  }
+  if (droppedBlocks.length) log(`round ${round.number}: ${droppedBlocks.length} gap(s) in the mic stream`);
+
+  // Where our own beep should sit in this recording (ignoring speaker + mic latency).
+  const firstFrame = chunks.length ? chunks[0].frame : NaN;
+  const expectedOwnIndex = Math.round(playAt * ctx.sampleRate) - firstFrame;
+  state.roundsTaken += 1;
+
+  // (f) Upload. The server waits until every phone in the round has uploaded,
+  //     then runs the whole pipeline once.
+  $('status').textContent = `Round ${round.number}: uploading ${(total / ctx.sampleRate).toFixed(1)} s of audio…`;
+  const reply = await api('POST', `/api/sessions/${state.sid}/rounds/${round.number}/upload`, {
+    phoneId: state.me.id,
+    sampleRate: ctx.sampleRate,
+    samplesBase64: float32ToBase64(samples),
+    meta: {
+      userAgent: navigator.userAgent,
+      outputLatency: latency,
+      clockOffsetMs: state.clockOffsetMs,
+      expectedOwnIndex,                       // server compares this with where it found the own beep
+      droppedBlocks,
+      micSettings: state.micSettings,
+      roundsTaken: state.roundsTaken,         // 1 = first round since this phone joined
+      msSinceUnlock: Date.now() - state.unlockedAt,
+    },
+  });
+  log(`round ${round.number}: uploaded ${total} samples → ${reply.status}`);
+  $('status').textContent = `Round ${round.number}: uploaded ✓`;
+
+  await waitForReport(round.number);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 6. REPORT: how well did THIS phone hear? (the map is on the host screen)
+// ═════════════════════════════════════════════════════════════════════════════
+async function waitForReport(number) {
+  for (let tries = 0; tries < 120; tries++) {          // give up after ~60 s
+    const r = await api('GET', `/api/sessions/${state.sid}/rounds/${number}`);
+    if (r.status === 'failed') {
+      $('report').innerHTML = `<p class="err">${esc(r.result?.error || 'failed')}</p>`;
+      drawMap($('map'), null, { message: r.result?.error || 'Round failed' });
+      return;
+    }
+    if (r.status === 'done') {
+      drawMap($('map'), r.result.layout, {
+        me: state.me.id,
+        message: r.result.layoutError || r.result.error || 'No map for this round',
+      });
+      const mine = r.result.detections?.[state.me.id];
+      if (!mine) {
+        $('report').innerHTML = r.result.layoutError ? `<p class="muted">${esc(r.result.layoutError)}</p>` : '';
+        return;
+      }
+      // Own beep should be very loud (speaker is centimetres from the mic).
+      // If it isn't, the phone is muted, too quiet, or voice processing is on.
+      const ownOk = mine.ownSnrDb >= 25;
+      const heard = Object.entries(mine.heard)
+        .map(([other, h]) => (h ? `${esc(other)} ✓` : `<span class="err">${esc(other)} ✗</span>`)).join(' · ');
+      $('report').innerHTML =
+        `<p class="${ownOk ? 'ok' : 'err'}">Own beep: ${mine.ownSnrDb.toFixed(0)} dB${ownOk ? '' : ' — too quiet: turn volume up, unmute, disconnect Bluetooth'}</p>` +
+        (mine.maxAbsSample > 0.9 ? '<p class="err">Recording clipped — turn volume down a little</p>' : '') +
+        `<p>Own-beep check: ${ownCheckHtml(mine)}</p>` +
+        `<p>Heard: ${heard || '–'}</p>`;
+      $('status').textContent = `Round ${number}: done`;
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+</script>
+</body>
+</html>
