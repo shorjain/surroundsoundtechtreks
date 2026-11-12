@@ -1,0 +1,207 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap");
+
+.invite {
+  --bg: #000;
+  --surface: #1a1a1a;
+  --pink: #e040d4;
+  --green: #8cf34b;
+  --cyan: #7fe3ff;
+  --text: #fff;
+  --muted: #a9a9a9;
+
+  min-height: 100dvh;
+  width: 100%;
+  padding: 24px max(20px, calc((100% - 430px) / 2)) 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Bricolage Grotesque", system-ui, sans-serif;
+  box-sizing: border-box;
+}
+
+.invite *,
+.invite *::before,
+.invite *::after {
+  box-sizing: border-box;
+}
+
+.invite button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.invite button:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+/* Header */
+.invite__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+}
+
+.invite__back {
+  position: absolute;
+  left: 0;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 2px solid #333;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  place-items: center;
+}
+
+.invite__title {
+  text-align: center;
+}
+
+.invite__title h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.invite__title p {
+  margin: 4px 0 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+/* Tabs */
+.invite__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.invite__tabs button {
+  padding: 14px 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.invite__tabs button.is-active {
+  background: var(--pink);
+  color: #000;
+}
+
+/* QR card */
+.invite__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 22px 22px;
+  border: 2px solid var(--pink);
+  border-radius: 28px;
+  background: var(--bg);
+  box-shadow: 0 0 22px rgba(224, 64, 212, 0.45), inset 0 0 14px rgba(224, 64, 212, 0.12);
+}
+
+.invite__label {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.invite__code {
+  margin: 6px 0 20px;
+  font-size: clamp(3.2rem, 17vw, 4.4rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+}
+
+.invite__qr {
+  width: min(100%, 300px);
+  padding: 14px;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.invite__qr svg {
+  display: block;
+}
+
+.invite__url {
+  margin: 18px 0 14px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.invite__url strong {
+  color: var(--cyan);
+  font-weight: 800;
+}
+
+.invite__copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  border: 2px solid #333;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+/* Joined phones */
+.invite__joined h2 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--cyan);
+}
+
+.invite__joined ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.invite__joined li {
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+/* CTA */
+.invite__cta {
+  margin-top: auto;
+  padding: 24px 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pink);
+  color: #000;
+  font-size: 1.6rem;
+  font-weight: 800;
+  box-shadow: 0 0 22px rgba(224, 64, 212, 0.55);
+}
+
+.invite__cta:active {
+  transform: scale(0.98);
+}
