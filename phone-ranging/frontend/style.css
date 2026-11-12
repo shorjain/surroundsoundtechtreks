@@ -1,0 +1,84 @@
+/*
+ * style.css — the ONLY stylesheet, shared by every page (phone, host, lab).
+ *
+ * Deliberately minimal: dark background, one readable font, thin dividers.
+ * No frameworks, no animations, no layout tricks. If a page looks wrong,
+ * the fix belongs here so all pages stay consistent.
+ */
+
+/* ── Colours: defined once as variables, used everywhere below ───────────── */
+:root {
+  color-scheme: dark;        /* tells the browser to draw native controls (inputs, scrollbars) dark too */
+  --bg: #111214;             /* page background */
+  --panel: #18191c;          /* inputs and the map background */
+  --line: #2a2c31;           /* dividers and borders */
+  --text: #e7e7e4;           /* normal text */
+  --muted: #8d8f96;          /* secondary text (hints, labels) */
+  --accent: #7aa2ff;         /* buttons, "this phone", estimates on the map */
+  --ok: #5cc28a;             /* good / used */
+  --bad: #ff7a66;            /* errors / dropped */
+}
+
+/* ── Page ───────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }            /* widths include padding: fewer surprises */
+body {
+  margin: 0 auto;
+  max-width: 680px;                       /* one readable column, centred */
+  padding: 24px 16px 48px;                /* 16px side gutter keeps phones comfortable */
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.55 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+h2 { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+section { border-top: 1px solid var(--line); padding: 16px 0; }   /* sections = thin rule above */
+p { margin: 6px 0; }
+
+/* ── Form controls ──────────────────────────────────────────────────────── */
+label { display: block; color: var(--muted); font-size: 13px; margin: 10px 0 4px; }
+input, select {
+  width: 100%;
+  font: inherit;
+  padding: 9px 10px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 16px;
+  margin-top: 12px;
+  color: #0d0f14;
+  background: var(--accent);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.plain { background: transparent; color: var(--accent); border: 1px solid var(--line); }  /* secondary action */
+button:disabled { opacity: 0.4; cursor: default; }
+.row { display: flex; gap: 12px; }        /* side-by-side fields */
+.row > * { flex: 1; min-width: 0; }
+
+/* ── Text helpers ───────────────────────────────────────────────────────── */
+.muted { color: var(--muted); font-size: 13px; }
+.ok { color: var(--ok); }
+.err { color: var(--bad); }
+.big { font-size: 18px; font-weight: 600; }                        /* the one status line people watch */
+code, .mono { font-family: ui-monospace, "JetBrains Mono", Consolas, monospace; font-size: 13px; word-break: break-all; }
+
+/* ── Tables (distances, detections) ─────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+th { color: var(--muted); font-weight: 500; }
+th:first-child, td:first-child { text-align: left; }
+.scroll { overflow-x: auto; }             /* wide tables scroll inside themselves, never the page */
+
+/* ── Map (drawn as SVG by common.js → drawMap) ──────────────────────────── */
+svg.map { width: 100%; height: auto; display: block; background: var(--panel); border-radius: 6px; margin: 8px 0; }
+
+/* ── Log box on the phone page ──────────────────────────────────────────── */
+#log { font: 12px/1.45 ui-monospace, Consolas, monospace; color: var(--muted); white-space: pre-wrap; max-height: 180px; overflow: auto; }
+
+.hidden { display: none; }               /* toggled from JS to show/hide whole sections */

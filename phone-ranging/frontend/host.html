@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ranging Host</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/frontend/style.css">
+</head>
+<body>
+<!--
+  HOST VIEW  (/frontend/host.html — open on the laptop running the server)
+
+  The host:
+    1. creates a session and shows the link/code phones use to join
+    2. lists the phones that have joined
+    3. optionally adds SIMULATED phones (no hardware needed — their recordings are
+       synthesised in this page with backend/simulate.js and uploaded like real ones)
+    4. starts rounds
+    5. shows the map, then the distances and how well each phone heard the others
+
+  Real and simulated phones can be mixed, but simulated phones can't hear real
+  ones (and vice versa), so mixed pairs show up as "no distance".
+-->
+
+<h1>Ranging host</h1>
+
+<!-- 1. Session + join link -->
+<section>
+  <h2>Session <span class="mono" id="sid">…</span></h2>
+  <p class="mono" id="phoneLink">…</p>
+  <button class="plain" id="newSessionBtn">New session</button>
+</section>
+
+<!-- 2. Phones -->
+<section>
+  <h2>Phones</h2>
+  <div id="phones" class="muted"></div>
+  <div class="row">
+    <div><label for="simCount">Simulated phones to add</label><input id="simCount" type="number" min="1" max="10" value="5"></div>
+    <div><label for="simSeed">Random layout seed</label><input id="simSeed" type="number" value="1"></div>
+  </div>
+  <button class="plain" id="addSimBtn">Add simulated phones</button>
+</section>
+
+<!-- 3. Start a round -->
+<section>
+  <h2>Round</h2>
+  <div class="row">
+    <div><label for="band">Frequency band</label>
+      <select id="band">
+        <option>2-6k</option><option>1-3k</option><option>3-6k</option><option>6-10k</option>
+        <option>10-14k</option><option>14-17k</option><option>17-21k</option>
+      </select></div>
+    <div><label for="temp">Room temperature °C</label><input id="temp" type="number" value="20"></div>
+  </div>
+  <div class="row">
+    <div><label for="placement">Placement</label><input id="placement" type="text" placeholder="e.g. table, 2 m apart" autocomplete="off"></div>
+    <div><label for="repeats">Rounds here</label><input id="repeats" type="number" min="1" max="20" value="2"></div>
+  </div>
+  <button id="startBtn">Start rounds</button>
+  <p class="big" id="roundStatus"></p>
+</section>
+
+<!-- 4. Map, then the numbers behind it -->
+<section>
+  <h2>Map</h2>
+  <p id="accuracy" class="muted"></p>
+  <svg class="map" id="map" role="img" aria-label="map of phone positions"></svg>
+</section>
+
+<section id="resultSection" class="hidden">
+  <h2 id="resultTitle"></h2>
+  <div id="result"></div>
+</section>
+
+<script type="module">
+import { api, esc, fmtM, drawMap, resultHtml } from '/frontend/common.js';
+import { simulateRecordings, randomLayout } from '/backend/simulate.js';
+import { float32ToBase64 } from '/backend/server/wav.js';
+
+const $ = (id) => document.getElementById(id);
+
+// ── Page state ──────────────────────────────────────────────────────────────
+const state = {
+  sid: null,          // current session code
+  sim: {},            // simulated phones: id → true [x, y] position in metres (only this page knows these)
+  shownRound: 0,      // number of the round whose result is on screen
+  burstTotal: 0,      // rounds requested for the current placement
+  burstStarted: 0,    // how many of those have been scheduled
+  burstStarting: false,
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 1. SESSION: reuse ?s=CODE from the address bar, otherwise create a new one
+// ═════════════════════════════════════════════════════════════════════════════
+async function openSession(sid) {
+  if (!sid) sid = (await api('POST', '/api/sessions')).id;
+  state.sid = sid;
+  state.sim = {};
+  state.shownRound = 0;
+  state.burstTotal = 0;
+  state.burstStarted = 0;
+  state.burstStarting = false;
+  $('startBtn').disabled = false;
+  history.replaceState(null, '', `?s=${encodeURIComponent(sid)}`);   // reload keeps the same session
+  $('sid').textContent = sid;
+  // Phones open the root page with the code in the link, so they never type it.
+  $('phoneLink').textContent = `${location.origin}/?s=${sid}`;
+  $('resultSection').classList.add('hidden');
+  $('accuracy').textContent = '';
+  drawMap($('map'), null, { message: '' });
+  $('roundStatus').textContent = '';
+}
+
+$('newSessionBtn').addEventListener('click', () => openSession(null));
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2. SIMULATED PHONES
+// ═════════════════════════════════════════════════════════════════════════════
+// Each one joins the session through the normal API (so the server treats it
+// like any phone), and this page remembers where we "placed" it, so the result
+// can be compared with the truth.
+$('addSimBtn').addEventListener('click', async () => {
+  const count = Math.min(Math.max(Number($('simCount').value) || 5, 1), 10);
+  // Random positions in a 4 m × 3 m room, at least 40 cm apart.
+  const positions = randomLayout(count, { seed: Number($('simSeed').value) || 1, width: 4, height: 3 });
+  for (const pos of positions) {
+    const name = `SIM${Object.keys(state.sim).length + 1}`;
+    try {
+      await api('POST', `/api/sessions/${state.sid}/join`, { name, model: 'simulated', selfDistance: 0.12 });
+      state.sim[name] = pos;
+    } catch (e) {
+      alert(e.message);
+      break;
+    }
+  }
+  refresh();
+});
+
+/**
+ * Pretend to be every simulated phone for this round: synthesise what each
+ * would have recorded (beeps from all simulated phones, 1/r loudness, a wall
+ * echo, noise, sloppy timing) and upload it exactly like a real phone would.
+ */
+async function uploadSimulatedRecordings(round) {
+  const { schedule } = round;
+  const phones = Object.entries(state.sim)
+    .filter(([id]) => schedule.slots[id] !== undefined)                  // only phones in this round's roster
+    .map(([id, pos]) => ({ id, pos, slot: schedule.slots[id], selfDistance: 0.12 }));
+  if (!phones.length) return;
+
+  const { recordings } = simulateRecordings({
+    phones,
+    chirp: schedule.chirp,
+    slotSeconds: schedule.slotSeconds,
+    leadInS: schedule.leadInS,
+    noise: 0.004,          // background noise level
+    wallY: 3.6,            // a wall just beyond the 3 m room edge → realistic echoes
+    wallReflection: 0.7,
+    seed: round.number,    // different noise each round
+  });
+  for (const p of phones) {
+    await api('POST', `/api/sessions/${state.sid}/rounds/${round.number}/upload`, {
+      phoneId: p.id,
+      sampleRate: recordings[p.id].sampleRate,
+      samplesBase64: float32ToBase64(recordings[p.id].samples),
+      meta: { simulated: true, truePosition: p.pos },
+    });
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 3. START A ROUND
+// ═════════════════════════════════════════════════════════════════════════════
+function burstCount() {
+  return Math.min(Math.max(Number($('repeats').value) || 1, 1), 20);
+}
+
+// Schedule the next round in the current placement. The server picks the start
+// time (≈3 s from now) and every phone's slot. The next one waits until this
+// one is finished, so the beeps never overlap.
+async function startNextInBurst() {
+  const placement = $('placement').value.trim();
+  if (placement) {
+    await api('PUT', `/api/sessions/${state.sid}/labels`, { placement });
+  }
+  const { round } = await api('POST', `/api/sessions/${state.sid}/rounds`, {
+    band: $('band').value,
+    temperatureC: Number($('temp').value) || 20,   // sets the speed of sound
+  });
+  state.burstStarted += 1;
+  const where = placement ? `${placement} — ` : '';
+  $('roundStatus').textContent = `${where}round ${round.number} (${state.burstStarted} of ${state.burstTotal}) scheduled — stay quiet`;
+  await uploadSimulatedRecordings(round);          // no-op if there are no simulated phones
+}
+
+$('startBtn').addEventListener('click', async () => {
+  if (state.burstStarted < state.burstTotal) return;
+  $('startBtn').disabled = true;
+  state.burstTotal = burstCount();
+  state.burstStarted = 0;
+  try {
+    await startNextInBurst();
+  } catch (e) {
+    state.burstTotal = state.burstStarted;
+    $('startBtn').disabled = false;
+    alert(e.message);
+  }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 4. REFRESH: poll the session every 500 ms, update phones + latest round
+// ═════════════════════════════════════════════════════════════════════════════
+let refreshBusy = false;
+async function refresh() {
+  if (refreshBusy || !state.sid) return;
+  refreshBusy = true;
+  try {
+    const s = await api('GET', `/api/sessions/${state.sid}`);
+
+    // Phone list: name, slot, and whether it's simulated.
+    $('phones').innerHTML = s.phones.length
+      ? s.phones.map((p) => `${esc(p.id)} <span class="muted">slot ${p.slot}${state.sim[p.id] ? ' · simulated' : ''}</span>`).join('<br>')
+      : '';
+
+    // Latest round: show progress while collecting, the result once done.
+    const latest = s.rounds[s.rounds.length - 1];
+    if (latest) {
+      const where = $('placement').value.trim();
+      const place = where ? `${where} — ` : '';
+      if (latest.status === 'done' || latest.status === 'failed') {
+        if (state.shownRound !== latest.number) await showRound(latest.number);
+        if (state.burstStarted < state.burstTotal && !state.burstStarting) {
+          state.burstStarting = true;
+          try {
+            await startNextInBurst();
+          } catch (e) {
+            state.burstTotal = state.burstStarted;
+            $('startBtn').disabled = false;
+            alert(e.message);
+          } finally {
+            state.burstStarting = false;
+          }
+        } else if (state.burstStarted >= state.burstTotal) {
+          $('roundStatus').textContent = state.burstTotal > 1
+            ? `${place}${state.burstTotal} rounds done. Move to the next placement.`
+            : `${place}round ${latest.number}: ${latest.status}`;
+          $('startBtn').disabled = false;
+        }
+      } else {
+        const total = Object.keys(latest.schedule.slots).length;
+        $('roundStatus').textContent = `${place}round ${latest.number} (${state.burstStarted} of ${state.burstTotal}): ${latest.uploaded.length} of ${total} phones uploaded`;
+      }
+    }
+  } catch {
+    $('roundStatus').textContent = 'Lost connection to the server…';
+  } finally {
+    refreshBusy = false;
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 5. RESULT
+// ═════════════════════════════════════════════════════════════════════════════
+async function showRound(number) {
+  const r = await api('GET', `/api/sessions/${state.sid}/rounds/${number}`);
+  state.shownRound = number;
+  $('resultSection').classList.remove('hidden');
+  $('resultTitle').textContent = `Round ${number} result`;
+  $('result').innerHTML = resultHtml(r.result);
+
+  const layout = r.result?.layout;
+  $('accuracy').textContent = '';
+  let truth;
+
+  // Simulated phones have a known layout. The solver's map can be slid, spun,
+  // or mirrored, so line the truth up with the map before measuring the error.
+  // A failure here must not skip drawing the map.
+  if (layout?.phones?.every((p) => state.sim[p.id])) {
+    try {
+      const est = layout.phones.map((p) => [p.x, p.y]);
+      const fit = await api('POST', '/api/procrustes', {
+        estimate: layout.phones.map((p) => state.sim[p.id]),
+        truth: est,
+      });
+      truth = Object.fromEntries(layout.phones.map((p, k) => [p.id, fit.positions[k]]));
+      $('accuracy').textContent = `Simulated phones — position error vs truth (RMS): ${fmtM(fit.rmse)}`;
+    } catch (e) {
+      $('accuracy').textContent = e.message;
+    }
+  }
+
+  // Ellipses from a simulation are often millimetres; zoom them so they're visible.
+  const tiny = layout?.phones?.length
+    && Math.max(...layout.phones.map((p) => p.ellipse?.semiMajor || 0)) < 0.03;
+  drawMap($('map'), layout, {
+    truth,
+    ellipseZoom: tiny ? 10 : 1,
+    message: r.result?.layoutError || r.result?.error || 'No map for this round',
+  });
+}
+
+// ── Go ──────────────────────────────────────────────────────────────────────
+await openSession(new URLSearchParams(location.search).get('s'));
+setInterval(refresh, 500);
+refresh();
+</script>
+</body>
+</html>
