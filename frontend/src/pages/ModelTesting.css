@@ -1,0 +1,7 @@
+.model-testing { max-width: 900px; margin: 0 auto; padding: 16px; font-family: system-ui, sans-serif; line-height: 1.4; }
+.model-testing table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+.model-testing th, .model-testing td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
+.model-testing .better { font-weight: bold; color: #0a7a2f; }
+.model-testing .cases { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.model-testing .case { border: 1px solid #ccc; padding: 8px; font-size: 14px; }
+.model-testing audio { display: block; width: 100%; margin: 6px 0; }
