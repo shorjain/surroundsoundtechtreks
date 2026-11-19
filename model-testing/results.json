@@ -1,0 +1,454 @@
+{
+ "run": "v2-recolor",
+ "step": 20000,
+ "parameters": 212444,
+ "summary": [
+  {
+   "label": "Overall (3,000 windows)",
+   "model": 92.3,
+   "rules": 73.0
+  },
+  {
+   "label": "Beep found",
+   "model": 92.0,
+   "rules": 71.0
+  },
+  {
+   "label": "False beep (lower is better)",
+   "model": 4.2,
+   "rules": 4.2
+  },
+  {
+   "label": "Real phone recordings, held out (18 windows)",
+   "model": 100.0,
+   "rules": null
+  }
+ ],
+ "groups": [
+  {
+   "title": "By snr",
+   "rows": [
+    {
+     "label": "< 10 dB",
+     "n": 743,
+     "model": 79.0,
+     "rules": 28.4
+    },
+    {
+     "label": "10\u201320",
+     "n": 341,
+     "model": 95.0,
+     "rules": 71.0
+    },
+    {
+     "label": "20\u201330",
+     "n": 383,
+     "model": 96.1,
+     "rules": 83.6
+    },
+    {
+     "label": "30\u201350",
+     "n": 641,
+     "model": 97.2,
+     "rules": 88.9
+    },
+    {
+     "label": "\u2265 50 dB",
+     "n": 656,
+     "model": 97.7,
+     "rules": 94.5
+    }
+   ]
+  },
+  {
+   "title": "By environment",
+   "rows": [
+    {
+     "label": "bedroom_night",
+     "n": 142,
+     "model": 95.1,
+     "rules": 79.6
+    },
+    {
+     "label": "bus_train",
+     "n": 176,
+     "model": 86.9,
+     "rules": 65.3
+    },
+    {
+     "label": "cafe",
+     "n": 170,
+     "model": 94.1,
+     "rules": 78.8
+    },
+    {
+     "label": "car_interior",
+     "n": 108,
+     "model": 98.1,
+     "rules": 82.4
+    },
+    {
+     "label": "classroom",
+     "n": 187,
+     "model": 89.8,
+     "rules": 64.2
+    },
+    {
+     "label": "construction",
+     "n": 174,
+     "model": 85.6,
+     "rules": 64.4
+    },
+    {
+     "label": "gym",
+     "n": 156,
+     "model": 89.1,
+     "rules": 66.7
+    },
+    {
+     "label": "hallway_echo",
+     "n": 138,
+     "model": 94.9,
+     "rules": 77.5
+    },
+    {
+     "label": "kitchen_appliances",
+     "n": 151,
+     "model": 95.4,
+     "rules": 79.5
+    },
+    {
+     "label": "lecture_hall",
+     "n": 159,
+     "model": 92.5,
+     "rules": 77.4
+    },
+    {
+     "label": "living_room_tv",
+     "n": 140,
+     "model": 99.3,
+     "rules": 76.4
+    },
+    {
+     "label": "office_hvac",
+     "n": 166,
+     "model": 91.0,
+     "rules": 70.5
+    },
+    {
+     "label": "open_office",
+     "n": 171,
+     "model": 94.7,
+     "rules": 81.3
+    },
+    {
+     "label": "outdoor_park_wind",
+     "n": 111,
+     "model": 91.0,
+     "rules": 74.8
+    },
+    {
+     "label": "party_music",
+     "n": 153,
+     "model": 94.8,
+     "rules": 67.3
+    },
+    {
+     "label": "quiet_room",
+     "n": 133,
+     "model": 93.2,
+     "rules": 70.7
+    },
+    {
+     "label": "rain",
+     "n": 125,
+     "model": 92.8,
+     "rules": 77.6
+    },
+    {
+     "label": "restaurant_busy",
+     "n": 94,
+     "model": 81.9,
+     "rules": 71.3
+    },
+    {
+     "label": "server_room",
+     "n": 173,
+     "model": 89.6,
+     "rules": 63.6
+    },
+    {
+     "label": "street_traffic",
+     "n": 173,
+     "model": 96.5,
+     "rules": 78.0
+    }
+   ]
+  },
+  {
+   "title": "By impostor",
+   "rows": [
+    {
+     "label": "impostor in window",
+     "n": 520,
+     "model": 85.4,
+     "rules": 56.2
+    },
+    {
+     "label": "no impostor",
+     "n": 2480,
+     "model": 93.8,
+     "rules": 76.5
+    }
+   ]
+  },
+  {
+   "title": "Edge-case suites (beep = must find it, alone = must stay quiet)",
+   "notes": [
+    "impostors: One impostor in the window. Beep windows: did it still find the beep? Alone: did it stay quiet?",
+    "noise: Each environment at a fixed beep SNR. Alone: beep-free windows at the environment's loud end.",
+    "worst_case: 0 to 10 dB SNR, one or two impostors in the window and echoes up to +3 dB, all at once.",
+    "echo: Reflections 0 to +3 dB louder than the direct sound. Naming the reflection is echo lock.",
+    "far: Peers 4 to 6 m away, some behind a body."
+   ],
+   "rows": [
+    {
+     "label": "impostors, beep",
+     "n": 1296,
+     "model": 97.1,
+     "rules": 80.3
+    },
+    {
+     "label": "impostors, alone",
+     "n": 864,
+     "model": 95.4,
+     "rules": 92.1
+    },
+    {
+     "label": "noise, beep",
+     "n": 800,
+     "model": 87.6,
+     "rules": 37.4
+    },
+    {
+     "label": "noise, alone",
+     "n": 160,
+     "model": 93.8,
+     "rules": 100.0
+    },
+    {
+     "label": "worst_case, beep",
+     "n": 100,
+     "model": 84.0,
+     "rules": 19.0
+    },
+    {
+     "label": "worst_case, alone",
+     "n": 50,
+     "model": 86.0,
+     "rules": 94.0
+    },
+    {
+     "label": "echo, beep",
+     "n": 150,
+     "model": 96.0,
+     "rules": 64.0
+    },
+    {
+     "label": "far, beep",
+     "n": 150,
+     "model": 75.3,
+     "rules": 9.3
+    }
+   ]
+  }
+ ],
+ "cases": [
+  {
+   "audio": "case-01.wav",
+   "snrDb": -8.5,
+   "beep": "peer",
+   "environment": "rain",
+   "distanceM": 0.52,
+   "impostors": [],
+   "faults": [
+    "late_start"
+   ],
+   "truthMs": 87.5,
+   "modelMs": 87.5,
+   "rulesMs": 87.5,
+   "modelRight": true,
+   "rulesRight": true
+  },
+  {
+   "audio": "case-02.wav",
+   "snrDb": 18.6,
+   "beep": "own",
+   "environment": "kitchen_appliances",
+   "distanceM": 0.183,
+   "impostors": [
+    "free-sound"
+   ],
+   "faults": [],
+   "truthMs": 242.2,
+   "modelMs": 242.2,
+   "rulesMs": 242.2,
+   "modelRight": true,
+   "rulesRight": true
+  },
+  {
+   "audio": "case-03.wav",
+   "snrDb": 27.9,
+   "beep": "peer",
+   "environment": "party_music",
+   "distanceM": 1.86,
+   "impostors": [
+    "us-gov"
+   ],
+   "faults": [],
+   "truthMs": 112.3,
+   "modelMs": 112.3,
+   "rulesMs": 112.3,
+   "modelRight": true,
+   "rulesRight": true
+  },
+  {
+   "audio": "case-04.wav",
+   "snrDb": 47.9,
+   "beep": "peer",
+   "environment": "lecture_hall",
+   "distanceM": 2.01,
+   "impostors": [],
+   "faults": [],
+   "truthMs": 73.7,
+   "modelMs": 73.7,
+   "rulesMs": 73.5,
+   "modelRight": true,
+   "rulesRight": true
+  },
+  {
+   "audio": "case-05.wav",
+   "snrDb": 52.7,
+   "beep": "peer",
+   "environment": "office_hvac",
+   "distanceM": 0.95,
+   "impostors": [],
+   "faults": [],
+   "truthMs": 137.3,
+   "modelMs": 137.3,
+   "rulesMs": 137.3,
+   "modelRight": true,
+   "rulesRight": true
+  },
+  {
+   "audio": "case-06.wav",
+   "snrDb": 12.5,
+   "beep": "peer",
+   "environment": "quiet_room",
+   "distanceM": 3.96,
+   "impostors": [],
+   "faults": [],
+   "truthMs": 223.3,
+   "modelMs": 223.3,
+   "rulesMs": null,
+   "modelRight": true,
+   "rulesRight": false
+  },
+  {
+   "audio": "case-07.wav",
+   "snrDb": -0.7,
+   "beep": "peer",
+   "environment": "restaurant_busy",
+   "distanceM": 3.76,
+   "impostors": [
+    "free-sound"
+   ],
+   "faults": [
+    "all_zero_stream"
+   ],
+   "truthMs": 115.7,
+   "modelMs": null,
+   "rulesMs": null,
+   "modelRight": false,
+   "rulesRight": false
+  },
+  {
+   "audio": "case-08.wav",
+   "snrDb": -1.1,
+   "beep": "peer",
+   "environment": "party_music",
+   "distanceM": 0.31,
+   "impostors": [
+    "librivox"
+   ],
+   "faults": [],
+   "truthMs": 199.0,
+   "modelMs": 200.2,
+   "rulesMs": null,
+   "modelRight": false,
+   "rulesRight": false
+  },
+  {
+   "audio": "case-09.wav",
+   "snrDb": null,
+   "beep": "none",
+   "environment": "street_traffic",
+   "distanceM": null,
+   "impostors": [
+    "free-sound"
+   ],
+   "faults": [],
+   "truthMs": null,
+   "modelMs": null,
+   "rulesMs": null,
+   "modelRight": true,
+   "rulesRight": true
+  },
+  {
+   "audio": "case-10.wav",
+   "snrDb": null,
+   "beep": "none",
+   "environment": "server_room",
+   "distanceM": null,
+   "impostors": [],
+   "faults": [],
+   "truthMs": null,
+   "modelMs": null,
+   "rulesMs": null,
+   "modelRight": true,
+   "rulesRight": true
+  },
+  {
+   "audio": "case-11.wav",
+   "snrDb": 29.1,
+   "beep": "own",
+   "environment": "bus_train",
+   "distanceM": 0.136,
+   "impostors": [],
+   "faults": [
+    "noise_suppression"
+   ],
+   "truthMs": 186.5,
+   "modelMs": 186.5,
+   "rulesMs": 186.5,
+   "modelRight": true,
+   "rulesRight": true
+  },
+  {
+   "audio": "case-12.wav",
+   "snrDb": 24.8,
+   "beep": "peer",
+   "environment": "rain",
+   "distanceM": 4.36,
+   "impostors": [],
+   "faults": [
+    "mains_hum"
+   ],
+   "truthMs": 55.2,
+   "modelMs": 55.2,
+   "rulesMs": null,
+   "modelRight": true,
+   "rulesRight": false
+  }
+ ]
+}
