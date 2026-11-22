@@ -1,8 +1,16 @@
 # SurroundSound
 A web app that aims to turn phones in one room into a synchronized speaker system with a shared device map.
 
-**Current status:** project scaffold only. The frontend checks the backend health endpoint.
-Room joining, uploads, playback synchronization and calibration are future work.
+**Current status:** proof of concept for synced playback. Placeholder pages, no styling:
+- `/host` creates a room code, lists devices (online, clock offset, sync accuracy), uploads a track,
+  plays it or a test click track on every phone, and mixes each phone (volume, mute, left/right/both).
+- `/join` is the phone: type the code, tap to enable sound. It keeps its clock synced to the server
+  and starts the host's track at the same server time as every other phone.
+- `/model-testing` shows how the beep-finder model was tested (`model-testing/build_report.py`).
+
+Routes are in `backend/app/routes/rooms.py`. Without `MONGODB_URI` the backend uses an in-memory
+database. Backend tests: `pip install -r requirements-dev.txt`, then `pytest` in `backend/`.
+Calibration is future work.
 
 ## Repository layout
 ```text
