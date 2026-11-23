@@ -4,6 +4,7 @@ import Home from './pages/Home.jsx';
 import Login from './pages/Login.jsx';
 import AdminSpace from './pages/AdminSpace.jsx';
 import CreateRoom from './pages/CreateRoom.jsx';
+import SoundControl from './pages/SoundControl.jsx';
 import Host from './pages/Host.jsx';
 import Join from './pages/Join.jsx';
 import ModelTesting from './pages/ModelTesting.jsx';
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/admin" element={<AdminSpace />} />
         <Route path="/create" element={<CreateRoom />} />
         <Route path="/room-test" element={<InviteTab room={{ name: "Friday Night Fever", genre: "Disco", mode: "Surround by position", code: "482731" }} phones={["Maya", "Jon", "Leo", "Ana", "Sam", "Kofi"]} onBack={() => console.log("back")} onStartCalibration={() => console.log("calibrate")} />} />
+        <Route path="/sound-control" element={<SoundControl />} />
         <Route path="/host" element={<Host />} />
         <Route path="/join" element={<Join />} />
         <Route path="/model-testing" element={<ModelTesting />} />
