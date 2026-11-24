@@ -62,7 +62,7 @@ export default function CreateRoom() {
     try {
       const room = await api('/rooms', { method: 'POST' });
       alert(`Party "${newParty.name}" is ready! Room code: ${room.code}`);
-    }
+      navigate("/invite", { state: { room: { code: room.code, name: newParty.name, genre: newParty.vibe, mode: newParty.mode } } });    }
     catch (error) {
       alert(`Room couldn't be created :( Error: ${error.message}`);
     }

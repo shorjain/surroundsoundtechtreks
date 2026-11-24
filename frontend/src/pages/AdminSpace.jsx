@@ -32,7 +32,6 @@ export default function AdminSpace({
     { id: 2, name: "Study Break Funk", date: "[DATE]", phones: 5 },
   ],
   onAccount = () => {},
-  onCreateParty = () => {},
   onInvite = () => {},
   onSoundControls = () => {},
   onHostAgain = (party) => {},
@@ -41,6 +40,7 @@ export default function AdminSpace({
   function handleCreateParty() {
     navigate("/create");
   }
+  
   // Load the fonts, the pulsing-dot animation, and make the page background black
   useEffect(() => {
     const link = document.createElement("link");

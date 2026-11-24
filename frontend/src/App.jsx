@@ -7,6 +7,7 @@ import CreateRoom from './pages/CreateRoom.jsx';
 import Host from './pages/Host.jsx';
 import Join from './pages/Join.jsx';
 import ModelTesting from './pages/ModelTesting.jsx';
+import Invite from './pages/Invite.jsx';
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/host" element={<Host />} />
         <Route path="/join" element={<Join />} />
         <Route path="/model-testing" element={<ModelTesting />} />
+        <Route path="/invite" element={<Invite />} />
       </Routes>
     </BrowserRouter>
   );
