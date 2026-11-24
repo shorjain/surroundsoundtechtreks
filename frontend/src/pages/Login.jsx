@@ -1,14 +1,14 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Login() {
   const [email, setEmail] = useState('');
+  const navigate  = useNavigate();
   const [password, setPassword] = useState('');
 
   function handleSubmit(event) {
     event.preventDefault();
-    // Placeholder: we'll connect this to the backend later
-    console.log('Login submitted', { email });
+    navigate('/admin');
   }
 
   return (
