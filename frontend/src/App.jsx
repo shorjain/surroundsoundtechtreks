@@ -7,6 +7,7 @@ import CreateRoom from './pages/CreateRoom.jsx';
 import Host from './pages/Host.jsx';
 import Join from './pages/Join.jsx';
 import ModelTesting from './pages/ModelTesting.jsx';
+import Room from './pages/Room.jsx';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/room-test" element={<InviteTab room={{ name: "Friday Night Fever", genre: "Disco", mode: "Surround by position", code: "482731" }} phones={["Maya", "Jon", "Leo", "Ana", "Sam", "Kofi"]} onBack={() => console.log("back")} onStartCalibration={() => console.log("calibrate")} />} />
         <Route path="/host" element={<Host />} />
         <Route path="/join" element={<Join />} />
+        <Route path="/room/:code" element={<Room />} />
         <Route path="/model-testing" element={<ModelTesting />} />
       </Routes>
     </BrowserRouter>

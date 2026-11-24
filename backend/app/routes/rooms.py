@@ -34,7 +34,13 @@ def room_state(room):
     for d in devices:
         d["id"] = d.pop("_id")
         d["online"] = now_ms() - d["lastSeen"] < ONLINE_MS
-    return {"code": room["_id"], "playback": room["playback"], "devices": devices}
+    return {"code": room["_id"], "party": room.get("party"), "playback": room["playback"], "devices": devices}
+
+class NewRoom(BaseModel):
+    name: str = "Party"
+    vibe: str = "Disco"
+    mode: Literal["surround", "mono"] = "surround"
+    maxPhones: int = 20
 
 class Join(BaseModel):
     name: str
@@ -56,11 +62,12 @@ def server_time():
     return {"serverTime": now_ms()}
 
 @router.post("/rooms")
-def create_room():
+def create_room(body: NewRoom | None = None):
+    party = (body or NewRoom()).model_dump()
     code = f"{secrets.randbelow(10**6):06d}"
     while get_database().rooms.find_one({"_id": code}):
         code = f"{secrets.randbelow(10**6):06d}"
-    room = {"_id": code, "hostToken": secrets.token_urlsafe(16), "playback": None}
+    room = {"_id": code, "hostToken": secrets.token_urlsafe(16), "playback": None, "party": party}
     get_database().rooms.insert_one(room)
     return {"code": code, "hostToken": room["hostToken"]}
 
