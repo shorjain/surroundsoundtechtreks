@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 // Screen 1: Admin space (what the host sees after logging in).
 // Everything is in this one file: no CSS file needed.
@@ -36,6 +37,10 @@ export default function AdminSpace({
   onSoundControls = () => {},
   onHostAgain = (party) => {},
 }) {
+  const navigate = useNavigate();
+  function handleCreateParty() {
+    navigate("/create");
+  }
   // Load the fonts, the pulsing-dot animation, and make the page background black
   useEffect(() => {
     const link = document.createElement("link");
@@ -107,7 +112,7 @@ export default function AdminSpace({
       )}
 
       {/* Big create button */}
-      <button style={styles.createBtn} onClick={onCreateParty}>
+      <button style={styles.createBtn} onClick={handleCreateParty}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="3" strokeLinecap="round" aria-hidden="true">
           <path d="M12 5v14M5 12h14" />
