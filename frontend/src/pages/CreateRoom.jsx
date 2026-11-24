@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../services/api";
 
 // Screen 2: Create party room (the host sets up a new party).
 // Everything is in this one file: no CSS file needed.
@@ -55,12 +56,16 @@ export default function CreateRoom() {
     return () => link.remove();
   }, []);
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!canCreate) return;
     const newParty = { name: partyName.trim(), vibe, mode, maxPhones };
-    // TODO: send newParty to the backend to make the room and get its code.
-    console.log("Creating party:", newParty);
-    alert(`Party "${newParty.name}" is ready! (Next: the QR & code page)`);
+    try {
+      const room = await api('/rooms', { method: 'POST' });
+      alert(`Party "${newParty.name}" is ready! Room code: ${room.code}`);
+    }
+    catch (error) {
+      alert(`Room couldn't be created :( Error: ${error.message}`);
+    }
   }
 
   return (
