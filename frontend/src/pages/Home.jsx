@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Home() {
   const [code, setCode] = useState('');
+  const navigate = useNavigate();
 
   function handleJoin() {
-    // Placeholder: we'll connect this to the backend later
-    console.log('Joining party with code:', code);
+    navigate(`/join?code=${code}`);
   }
 
   return (
